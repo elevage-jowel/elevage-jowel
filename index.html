@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Suivi d'élevage - Parents (complet, corrigé)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f3f4f6; margin: 0; padding: 0; }
+    .container { max-width: 1400px; margin: 20px auto; background: #ffffff; padding: 20px 25px;
+      border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);}
+    h1 { text-align: center; margin-top: 0; margin-bottom: 6px;}
+    .subtitle { text-align: center; color: #4b5563; margin-bottom: 15px; font-size: 0.9rem;}
+    .flex-top { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 15px;}
+    .types-panel {
+      flex: 1 1 260px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #f9fafb;
+      font-size: 0.85rem;
+    }
+    .types-panel h2 { margin: 0 0 6px; font-size: 1rem; }
+    .types-form {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .types-form input {
+      flex: 1;
+      padding: 4px 6px;
+      border-radius: 4px;
+      border: 1px solid #d1d5db;
+      font-size: 0.85rem;
+    }
+    .types-form button {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+    #typesList {
+      list-style: none;
+      padding-left: 0;
+      max-height: 150px;
+      overflow-y: auto;
+      margin: 0;
+    }
+    #typesList li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px 0;
+      border-bottom: 1px dashed #e5e7eb;
+      font-size: 0.85rem;
+    }
+    #typesList li button {
+      padding: 2px 6px;
+      font-size: 0.75rem;
+    }
+    .types-help { color:#6b7280; font-size:0.78rem; margin-top:6px; }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    button { border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;}
+    .btn-primary { background: #2563eb; color: white;}
+    .btn-secondary { background: #e5e7eb; color: #111827;}
+    .btn-danger { background: #ef4444; color: white;}
+    .btn-export { background: #16a34a; color: white;}
+    .btn-link { background: #0f766e; color: #ecfeff; font-size: 0.8rem; padding: 5px 8px; }
+    .btn-small { padding: 4px 8px; font-size: 0.8rem;}
+    .btn-date { background:#0ea5e9; color:white; font-size:0.75rem; padding:4px 6px; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px;}
+    th, td { border: 1px solid #e5e7eb; padding: 6px; text-align: left; font-size: 0.8rem;}
+    th { background: #f9fafb; font-weight: 600;}
+    input[type="text"], input[type="date"], select {
+      width: 100%; box-sizing: border-box; padding: 4px 5px; border-radius: 4px;
+      border: 1px solid #d1d5db; font-size: 0.8rem;
+    }
+    input:focus, select:focus {
+      outline: none; border-color: #2563eb;
+      box-shadow: 0 0 0 1px rgba(37,99,235,0.3);
+    }
+    img.photo { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border:1px solid #d1d5db; display:block; margin-bottom:4px;}
+    .info { margin-top: 15px; font-size: 0.8rem; color: #6b7280; text-align: center;}
+    .file-input { font-size:0.7rem; }
+
+    @media (max-width: 900px) {
+      table, thead, tbody, th, td, tr { font-size: 0.7rem; }
+      .flex-top { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Suivi d'élevage - Parents par cage (version complète)</h1>
+    <div class="subtitle">
+      Types (espèces) gérés par un menu ➜ photo des parents ➜ ponte du 1er œuf (bouton date du jour) ➜
+      date d'éclosion calculée automatiquement (+14 jours) ➜ lien direct vers la page des petits.
+    </div>
+
+    <div class="flex-top">
+      <div class="types-panel">
+        <h2>Gestion des types (espèces)</h2>
+        <div class="types-form">
+          <input id="newTypeInput" type="text" placeholder="Ex: Canari, Mandarin, Diamant...">
+          <button class="btn-primary btn-small" id="addTypeBtn">Ajouter</button>
+        </div>
+        <ul id="typesList"></ul>
+        <div class="types-help">
+          ➜ Les types listés ici apparaissent dans la colonne <b>Type</b> du tableau.<br>
+          Tu peux en ajouter / supprimer selon ton élevage.
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="addCageBtn">➕ Ajouter une cage</button>
+      <button class="btn-secondary" id="clearAllBtn">🧹 Effacer toutes les cages</button>
+      <button class="btn-export" id="exportCsvBtn">📄 Exporter en CSV (Excel)</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:70px;">Cage</th>
+          <th style="width:130px;">Type</th>
+          <th>♂ Mâle - N° bague</th>
+          <th>Année ♂</th>
+          <th>♀ Femelle - N° bague</th>
+          <th>Année ♀</th>
+          <th>Mutation / Couleur</th>
+          <th>Remarques</th>
+          <th>Photo parents</th>
+          <th>Ponte (1er œuf)</th>
+          <th>Éclosion (+14j)</th>
+          <th style="width:160px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="cagesBody"></tbody>
+    </table>
+
+    <div class="info">
+      💾 Sauvegarde automatique dans le navigateur (localStorage).<br>
+      📄 Le bouton CSV permet d'ouvrir/importer le fichier dans Excel ou Google Sheets.<br>
+      🔗 Le bouton <b>Petits</b> ouvre la page de gestion des jeunes pour la cage choisie.
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'elevage_parents_complet_v2';
+    const TYPES_KEY = 'elevage_oiseaux_types_parents';
+
+    const cagesBody = document.getElementById('cagesBody');
+    const addCageBtn = document.getElementById('addCageBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+
+    const newTypeInput = document.getElementById('newTypeInput');
+    const addTypeBtn = document.getElementById('addTypeBtn');
+    const typesListEl = document.getElementById('typesList');
+
+    function loadCages() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch { return []; }
+    }
+
+    function saveCages() {
+      const rows = cagesBody.querySelectorAll('tr');
+      const data = [];
+      rows.forEach(row => {
+        data.push({
+          cage: row.querySelector('.cage-num').value.trim(),
+          type: row.querySelector('.type-select').value.trim(),
+          male: row.querySelector('.male-ring').value.trim(),
+          yearMale: row.querySelector('.year-male').value.trim(),
+          female: row.querySelector('.female-ring').value.trim(),
+          yearFemale: row.querySelector('.year-female').value.trim(),
+          mutation: row.querySelector('.mutation').value.trim(),
+          notes: row.querySelector('.notes').value.trim(),
+          photo: row.dataset.photo || '',
+          egg: row.querySelector('.egg-date').value.trim(),
+          hatch: row.querySelector('.hatch-date').value.trim()
+        });
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function loadTypes() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(TYPES_KEY));
+        if (Array.isArray(raw)) return raw;
+        return [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveTypes(types) {
+      localStorage.setItem(TYPES_KEY, JSON.stringify(types));
+    }
+
+    function populateTypeSelect(select, types, selectedValue) {
+      const current = selectedValue || select.value || '';
+      select.innerHTML = '';
+      const emptyOpt = document.createElement('option');
+      emptyOpt.value = '';
+      emptyOpt.textContent = '-';
+      select.appendChild(emptyOpt);
+
+      types.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        select.appendChild(opt);
+      });
+
+      if (current && !types.includes(current)) {
+        const optOld = document.createElement('option');
+        optOld.value = current;
+        optOld.textContent = current + ' (ancien)';
+        select.appendChild(optOld);
+      }
+
+      select.value = current;
+    }
+
+    function refreshAllTypeSelects() {
+      const types = loadTypes();
+      document.querySelectorAll('.type-select').forEach(sel => {
+        populateTypeSelect(sel, types, sel.value);
+      });
+    }
+
+    function renderTypesList() {
+      const types = loadTypes();
+      typesListEl.innerHTML = '';
+      if (types.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'Aucun type encodé pour le moment.';
+        typesListEl.appendChild(li);
+        return;
+      }
+
+      types.forEach(t => {
+        const li = document.createElement('li');
+        const span = document.createElement('span');
+        span.textContent = t;
+        const btn = document.createElement('button');
+        btn.textContent = 'Supprimer';
+        btn.className = 'btn-danger btn-small';
+        btn.addEventListener('click', () => {
+          const current = loadTypes();
+          const filtered = current.filter(x => x !== t);
+          saveTypes(filtered);
+          renderTypesList();
+          refreshAllTypeSelects();
+        });
+        li.appendChild(span);
+        li.appendChild(btn);
+        typesListEl.appendChild(li);
+      });
+    }
+
+    function openBabiesPage(cageNum) {
+      if (!cageNum) {
+        alert("Merci d'indiquer d'abord un numéro de cage.");
+        return;
+      }
+      const url = 'elevage_petits_par_cage_v3.html?cage=' + encodeURIComponent(cageNum);
+      window.open(url, '_blank');
+    }
+
+    function today() {
+      const d = new Date();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const j = String(d.getDate()).padStart(2, '0');
+      return d.getFullYear() + '-' + m + '-' + j;
+    }
+
+    function addDays(dateStr, days) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      d.setDate(d.getDate() + days);
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const j = String(d.getDate()).padStart(2, '0');
+      return d.getFullYear() + '-' + m + '-' + j;
+    }
+
+    function createRow(cage='', typeVal='', male='', yearMale='', female='', yearFemale='', mutation='', notes='', photo='', egg='', hatch='') {
+      const tr = document.createElement('tr');
+      tr.dataset.photo = photo || '';
+
+      tr.innerHTML = `
+        <td><input type="text" class="cage-num" placeholder="Ex: 1A" value="${cage}"></td>
+        <td><select class="type-select"></select></td>
+        <td><input type="text" class="male-ring" placeholder="N° bague mâle" value="${male}"></td>
+        <td><input type="text" class="year-male" placeholder="Ex: 2023" value="${yearMale}"></td>
+        <td><input type="text" class="female-ring" placeholder="N° bague femelle" value="${female}"></td>
+        <td><input type="text" class="year-female" placeholder="Ex: 2023" value="${yearFemale}"></td>
+        <td><input type="text" class="mutation" placeholder="Mutation / couleur" value="${mutation}"></td>
+        <td><input type="text" class="notes" placeholder="Remarques" value="${notes}"></td>
+        <td>
+          <img class="photo" src="${photo || ''}">
+          <input type="file" accept="image/*" class="file-input file">
+        </td>
+        <td>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <input type="date" class="egg-date" value="${egg || ''}">
+            <button class="btn-date eggToday">📅</button>
+          </div>
+        </td>
+        <td>
+          <input type="date" class="hatch-date" value="${hatch || ''}" readonly style="background:#eef2f7;">
+        </td>
+        <td style="text-align:center; display:flex; flex-direction:column; gap:4px;">
+          <button class="btn-link btn-small btn-babies">Petits</button>
+          <button class="btn-danger btn-small btn-delete">Supprimer</button>
+        </td>
+      `;
+
+      const typeSelect = tr.querySelector('.type-select');
+      populateTypeSelect(typeSelect, loadTypes(), typeVal);
+
+      function updateHatch() {
+        const eggVal = tr.querySelector('.egg-date').value;
+        tr.querySelector('.hatch-date').value = addDays(eggVal, 14);
+        saveCages();
+      }
+
+      tr.querySelector('.egg-date').addEventListener('input', updateHatch);
+      tr.querySelector('.eggToday').addEventListener('click', () => {
+        tr.querySelector('.egg-date').value = today();
+        updateHatch();
+      });
+
+      tr.querySelectorAll('input[type="text"], input[type="date"], select').forEach(input => {
+        input.addEventListener('input', saveCages);
+      });
+
+      tr.querySelector('.btn-delete').addEventListener('click', () => {
+        tr.remove();
+        saveCages();
+      });
+
+      const babiesBtn = tr.querySelector('.btn-babies');
+      babiesBtn.addEventListener('click', () => {
+        const cageVal = tr.querySelector('.cage-num').value.trim();
+        openBabiesPage(cageVal);
+      });
+
+      const fileInput = tr.querySelector('.file');
+      const img = tr.querySelector('.photo');
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          tr.dataset.photo = reader.result;
+          img.src = reader.result;
+          saveCages();
+        };
+        reader.readAsDataURL(file);
+      });
+
+      cagesBody.appendChild(tr);
+    }
+
+    function init() {
+      renderTypesList();
+
+      const cages = loadCages();
+      if (cages.length === 0) {
+        createRow();
+      } else {
+        cages.forEach(c => createRow(
+          c.cage || '',
+          c.type || '',
+          c.male || '',
+          c.yearMale || '',
+          c.female || '',
+          c.yearFemale || '',
+          c.mutation || '',
+          c.notes || '',
+          c.photo || '',
+          c.egg || '',
+          c.hatch || ''
+        ));
+      }
+    }
+
+    function exportToCsv() {
+      const rows = cagesBody.querySelectorAll('tr');
+      const lines = [];
+      lines.push([
+        'Cage',
+        'Type',
+        'Male_Bague',
+        'Male_Annee',
+        'Femelle_Bague',
+        'Femelle_Annee',
+        'Mutation_Couleur',
+        'Remarques',
+        'Date_Ponte_Premier_Oeuf',
+        'Date_Eclosion_Prevue'
+      ].join(';'));
+
+      rows.forEach(row => {
+        const cage = row.querySelector('.cage-num').value.trim();
+        const typeVal = row.querySelector('.type-select').value.trim();
+        const male = row.querySelector('.male-ring').value.trim();
+        const yearMale = row.querySelector('.year-male').value.trim();
+        const female = row.querySelector('.female-ring').value.trim();
+        const yearFemale = row.querySelector('.year-female').value.trim();
+        const mutation = row.querySelector('.mutation').value.trim();
+        const notes = row.querySelector('.notes').value.trim();
+        const egg = row.querySelector('.egg-date').value.trim();
+        const hatch = row.querySelector('.hatch-date').value.trim();
+
+        lines.push([
+          cage,
+          typeVal,
+          male,
+          yearMale,
+          female,
+          yearFemale,
+          mutation,
+          notes.replace(/\n/g, ' '),
+          egg,
+          hatch
+        ].map(value => value.replace(/;/g, ',')).join(';'));
+      });
+
+      const csvContent = '\uFEFF' + lines.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'elevage_parents_complet.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    addCageBtn.addEventListener('click', () => { createRow(); saveCages(); });
+
+    clearAllBtn.addEventListener('click', () => {
+      if (!confirm('Effacer toutes les cages ?')) return;
+      cagesBody.innerHTML = '';
+      saveCages();
+      createRow();
+    });
+
+    exportCsvBtn.addEventListener('click', exportToCsv);
+
+    addTypeBtn.addEventListener('click', () => {
+      const val = newTypeInput.value.trim();
+      if (!val) return;
+      let types = loadTypes();
+      if (!types.includes(val)) {
+        types.push(val);
+        saveTypes(types);
+        renderTypesList();
+        refreshAllTypeSelects();
+      }
+      newTypeInput.value = '';
+      newTypeInput.focus();
+    });
+
+    newTypeInput.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') {
+        addTypeBtn.click();
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
