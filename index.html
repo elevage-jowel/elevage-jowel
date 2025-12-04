@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Suivi d'élevage - Parents (Supabase + Types)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f3f4f6; margin: 0; padding: 0; }
+    .container { max-width: 1400px; margin: 20px auto; background: #ffffff; padding: 20px 25px;
+      border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);}
+    h1 { text-align: center; margin-top: 0; margin-bottom: 6px;}
+    .subtitle { text-align: center; color: #4b5563; margin-bottom: 15px; font-size: 0.9rem;}
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .flex-top { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 15px;}
+    .types-panel {
+      flex: 1 1 260px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #f9fafb;
+      font-size: 0.85rem;
+    }
+    .types-panel h2 { margin: 0 0 6px; font-size: 1rem; }
+    .types-form {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .types-form input {
+      flex: 1;
+      padding: 4px 6px;
+      border-radius: 4px;
+      border: 1px solid #d1d5db;
+      font-size: 0.85rem;
+    }
+    .types-form button {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+    #typesList {
+      list-style: none;
+      padding-left: 0;
+      max-height: 150px;
+      overflow-y: auto;
+      margin: 0;
+    }
+    #typesList li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px 0;
+      border-bottom: 1px dashed #e5e7eb;
+      font-size: 0.85rem;
+    }
+    #typesList li button {
+      padding: 2px 6px;
+      font-size: 0.75rem;
+    }
+    .types-help { color:#6b7280; font-size:0.78rem; margin-top:6px; }
+
+    button { border: none; padding: 8px 14px; border-radius: 6px; cursor:pointer; font-size: 0.9rem;}
+    .btn-primary { background: #2563eb; color: white;}
+    .btn-secondary { background: #e5e7eb; color: #111827;}
+    .btn-danger { background: #ef4444; color: white;}
+    .btn-export { background: #16a34a; color: white;}
+    .btn-link { background: #0f766e; color: #ecfeff; font-size: 0.8rem; padding: 5px 8px; }
+    .btn-small { padding: 4px 8px; font-size: 0.8rem;}
+    .btn-date { background:#0ea5e9; color:white; font-size:0.75rem; padding:4px 6px; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px;}
+    th, td { border: 1px solid #e5e7eb; padding: 6px; text-align: left; font-size: 0.8rem;}
+    th { background: #f9fafb; font-weight: 600;}
+    input[type="text"], input[type="date"], select {
+      width: 100%; box-sizing: border-box; padding: 4px 5px; border-radius: 4px;
+      border: 1px solid #d1d5db; font-size: 0.8rem;
+    }
+    input:focus, select:focus {
+      outline: none; border-color: #2563eb;
+      box-shadow: 0 0 0 1px rgba(37,99,235,0.3);
+    }
+    img.photo { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border:1px solid #d1d5db; display:block; margin-bottom:4px;}
+    .info { margin-top: 15px; font-size: 0.8rem; color: #6b7280; text-align: center;}
+    .file-input { font-size:0.7rem; }
+
+    @media (max-width: 900px) {
+      table, thead, tbody, th, td, tr { font-size: 0.7rem; }
+      .flex-top { flex-direction: column; }
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Suivi d'élevage - Parents</h1>
+    <div class="subtitle">
+      Parents enregistrés dans Supabase (table <code>parents</code>)<br>
+      Types d'espèces gérés dans Supabase (table <code>species_types</code>)<br>
+      Photos stockées dans le bucket <code>parents-photos</code>.
+    </div>
+
+    <div class="flex-top">
+      <div class="types-panel">
+        <h2>Types d'espèces (Supabase)</h2>
+        <div class="types-form">
+          <input id="newTypeInput" type="text" placeholder="Ex: Canari, Mandarin, Diamant...">
+          <button class="btn-primary btn-small" id="addTypeBtn" type="button">Ajouter</button>
+        </div>
+        <ul id="typesList"></ul>
+        <div class="types-help">
+          ➜ Ces types apparaissent dans la colonne <b>Type</b> du tableau des cages.<br>
+          ➜ Tout est partagé entre tes appareils (stocké dans Supabase).
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="addCageBtn" type="button">➕ Ajouter une cage</button>
+      <button class="btn-secondary" id="loadBtn" type="button">🔄 Recharger depuis le serveur</button>
+      <button class="btn-primary" id="saveBtn" type="button">💾 Sauvegarder sur le serveur</button>
+      <button class="btn-export" id="exportCsvBtn" type="button">📄 Exporter en CSV</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:70px;">Cage</th>
+          <th style="width:130px;">Type</th>
+          <th>♂ Mâle - N° bague</th>
+          <th>Année ♂</th>
+          <th>♀ Femelle - N° bague</th>
+          <th>Année ♀</th>
+          <th>Mutation / Couleur</th>
+          <th>Remarques</th>
+          <th>Photo parents</th>
+          <th>Ponte (1er œuf)</th>
+          <th>Éclosion (+14j)</th>
+          <th style="width:160px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="cagesBody"></tbody>
+    </table>
+
+    <div class="info">
+      💡 Pour les petits : le bouton <b>Petits</b> ouvre la page <code>elevage_petits_par_cage_v3.html</code> pour la cage choisie.
+    </div>
+  </div>
+
+  <script>
+    const {{ createClient }} = supabase;
+    const SUPABASE_URL = "https://xaycnsxvpdmbseuteolp.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhheWNuc3h2cGRtYnNldXRlb2xwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3Njg3MTYsImV4cCI6MjA4MDM0NDcxNn0.j7tJmQkL7bWUSvqAfe8RqTy5Zx05uxdNBazv6Gou2M4";
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const cagesBody = document.getElementById('cagesBody');
+    const addCageBtn = document.getElementById('addCageBtn');
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const loadBtn = document.getElementById('loadBtn');
+
+    const newTypeInput = document.getElementById('newTypeInput');
+    const addTypeBtn = document.getElementById('addTypeBtn');
+    const typesListEl = document.getElementById('typesList');
+
+    // --- Types d'espèces : Supabase ---
+    async function loadTypesFromSupabase() {
+      const { data, error } = await sb
+        .from('species_types')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error("Erreur chargement types:", error);
+        return [];
+      }
+      return data.map(t => t.name);
+    }
+
+    async function addTypeToSupabase(name) {
+      const { error } = await sb
+        .from('species_types')
+        .insert([{ name }]);
+      if (error) {
+        console.error("Erreur ajout type:", error);
+        alert("Impossible d'ajouter ce type (voir console).");
+      }
+    }
+
+    async function deleteTypeFromSupabase(name) {
+      const { error } = await sb
+        .from('species_types')
+        .delete()
+        .eq('name', name);
+      if (error) {
+        console.error("Erreur suppression type:", error);
+        alert("Impossible de supprimer ce type (voir console).");
+      }
+    }
+
+    async function refreshTypesUI() {
+      const types = await loadTypesFromSupabase();
+      typesListEl.innerHTML = '';
+      if (!types.length) {
+        const li = document.createElement('li');
+        li.textContent = "Aucun type encodé pour le moment.";
+        typesListEl.appendChild(li);
+        return;
+      }
+
+      types.forEach(t => {
+        const li = document.createElement('li');
+        const span = document.createElement('span');
+        span.textContent = t;
+        const btn = document.createElement('button');
+        btn.textContent = 'Supprimer';
+        btn.className = 'btn-danger btn-small';
+        btn.addEventListener('click', async () => {
+          if (!confirm("Supprimer le type '" + t + "' ?")) return;
+          await deleteTypeFromSupabase(t);
+          await refreshTypesUI();
+          await refreshAllTypeSelects();
+        });
+        li.appendChild(span);
+        li.appendChild(btn);
+        typesListEl.appendChild(li);
+      });
+    }
+
+    async function refreshAllTypeSelects() {
+      const types = await loadTypesFromSupabase();
+      document.querySelectorAll('.type-select').forEach(select => {
+        const current = select.value || '';
+        select.innerHTML = '';
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = '-';
+        select.appendChild(emptyOpt);
+
+        types.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t;
+          opt.textContent = t;
+          select.appendChild(opt);
+        });
+
+        if (current) select.value = current;
+      });
+    }
+
+    // --- Utilitaires dates ---
+    function today() {
+      const d = new Date();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const j = String(d.getDate()).padStart(2, '0');
+      return d.getFullYear() + '-' + m + '-' + j;
+    }
+
+    function addDays(dateStr, days) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      d.setDate(d.getDate() + days);
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const j = String(d.getDate()).padStart(2, '0');
+      return d.getFullYear() + '-' + m + '-' + j;
+    }
+
+    function openBabiesPage(cageNum) {
+      if (!cageNum) {
+        alert("Merci d'indiquer d'abord un numéro de cage.");
+        return;
+      }
+      const url = 'elevage_petits_par_cage_v3.html?cage=' + encodeURIComponent(cageNum);
+      window.open(url, '_blank');
+    }
+
+    // --- Création d'une ligne de tableau ---
+    function createRow(cage = '', typeVal = '', male = '', yearMale = '', female = '', yearFemale = '', mutation = '', notes = '', photo = '', egg = '', hatch = '') {
+      const tr = document.createElement('tr');
+      tr.dataset.photo = photo || '';
+
+      tr.innerHTML = `
+        <td><input type="text" class="cage-num" placeholder="Ex: 1A" value="${cage}"></td>
+        <td><select class="type-select"></select></td>
+        <td><input type="text" class="male-ring" placeholder="N° bague mâle" value="${male}"></td>
+        <td><input type="text" class="year-male" placeholder="Ex: 2023" value="${yearMale}"></td>
+        <td><input type="text" class="female-ring" placeholder="N° bague femelle" value="${female}"></td>
+        <td><input type="text" class="year-female" placeholder="Ex: 2023" value="${yearFemale}"></td>
+        <td><input type="text" class="mutation" placeholder="Mutation / couleur" value="${mutation}"></td>
+        <td><input type="text" class="notes" placeholder="Remarques" value="${notes}"></td>
+        <td>
+          <img class="photo" src="${photo || ''}">
+          <input type="file" accept="image/*" capture="environment" class="file-input file">
+        </td>
+        <td>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <input type="date" class="egg-date" value="${egg || ''}">
+            <button class="btn-date eggToday" type="button">📅</button>
+          </div>
+        </td>
+        <td>
+          <input type="date" class="hatch-date" value="${hatch || ''}" readonly style="background:#eef2f7;">
+        </td>
+        <td style="text-align:center; display:flex; flex-direction:column; gap:4px;">
+          <button class="btn-link btn-small btn-babies" type="button">Petits</button>
+          <button class="btn-danger btn-small btn-delete" type="button">Supprimer</button>
+        </td>
+      `;
+
+      function updateHatch() {
+        const eggVal = tr.querySelector('.egg-date').value;
+        tr.querySelector('.hatch-date').value = addDays(eggVal, 14);
+      }
+
+      tr.querySelector('.egg-date').addEventListener('input', updateHatch);
+      tr.querySelector('.eggToday').addEventListener('click', () => {
+        tr.querySelector('.egg-date').value = today();
+        updateHatch();
+      });
+
+      tr.querySelector('.btn-delete').addEventListener('click', () => {
+        tr.remove();
+      });
+
+      const babiesBtn = tr.querySelector('.btn-babies');
+      babiesBtn.addEventListener('click', () => {
+        const cageVal = tr.querySelector('.cage-num').value.trim();
+        openBabiesPage(cageVal);
+      });
+
+      const fileInput = tr.querySelector('.file');
+      const img = tr.querySelector('.photo');
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const cageVal = tr.querySelector('.cage-num').value.trim() || 'sans-cage';
+        const filePath = 'cage-' + cageVal + '-' + Date.now() + '.jpg';
+
+        try {
+          const { data, error } = await sb
+            .storage
+            .from('parents-photos')
+            .upload(filePath, file);
+
+          if (error) {
+            console.error(error);
+            alert("Erreur lors de l'upload de la photo");
+            return;
+          }
+
+          const { data: publicData } = sb
+            .storage
+            .from('parents-photos')
+            .getPublicUrl(filePath);
+
+          const url = publicData.publicUrl;
+          tr.dataset.photo = url;
+          img.src = url;
+        } catch (err) {
+          console.error(err);
+          alert("Erreur inconnue lors de l'upload de la photo");
+        }
+      });
+
+      cagesBody.appendChild(tr);
+    }
+
+    // --- Chargement des parents depuis Supabase ---
+    async function loadParentsFromSupabase() {
+      cagesBody.innerHTML = '';
+      try {
+        const { data, error } = await sb
+          .from('parents')
+          .select('*')
+          .order('cage', { ascending: true });
+
+        if (error) {
+          console.error(error);
+          alert("Erreur de chargement Supabase : " + error.message);
+          createRow();
+          await refreshAllTypeSelects();
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          createRow();
+          await refreshAllTypeSelects();
+          return;
+        }
+
+        data.forEach(c => createRow(
+          c.cage || '',
+          c.type || '',
+          c.male_ring || '',
+          c.year_male || '',
+          c.female_ring || '',
+          c.year_female || '',
+          c.mutation || '',
+          c.notes || '',
+          c.photo_url || '',
+          c.egg_date || '',
+          c.hatch_date || ''
+        ));
+
+        await refreshAllTypeSelects();
+      } catch (e) {
+        console.error(e);
+        alert("Erreur inattendue en chargeant les données.");
+        createRow();
+        await refreshAllTypeSelects();
+      }
+    }
+
+    // --- Sauvegarde des parents vers Supabase ---
+    async function saveParentsToSupabase() {
+      const rows = [];
+      document.querySelectorAll('#cagesBody tr').forEach(tr => {
+        const cage = tr.querySelector('.cage-num').value.trim();
+        if (!cage) return;
+        rows.push({
+          cage,
+          type: tr.querySelector('.type-select').value.trim(),
+          male_ring: tr.querySelector('.male-ring').value.trim(),
+          year_male: tr.querySelector('.year-male').value.trim(),
+          female_ring: tr.querySelector('.female-ring').value.trim(),
+          year_female: tr.querySelector('.year-female').value.trim(),
+          mutation: tr.querySelector('.mutation').value.trim(),
+          notes: tr.querySelector('.notes').value.trim(),
+          egg_date: tr.querySelector('.egg-date').value || null,
+          hatch_date: tr.querySelector('.hatch-date').value || null,
+          photo_url: tr.dataset.photo || null
+        });
+      });
+
+      try {
+        const del = await sb.from('parents').delete().neq('cage', '');
+        if (del.error) {
+          console.error(del.error);
+          alert("Erreur lors de l'effacement précédent : " + del.error.message);
+          return;
+        }
+
+        if (rows.length > 0) {
+          const { error: insError } = await sb.from('parents').insert(rows);
+          if (insError) {
+            console.error(insError);
+            alert("Erreur lors de la sauvegarde : " + insError.message);
+            return;
+          }
+        }
+
+        alert("Sauvegarde effectuée sur Supabase ✅");
+      } catch (e) {
+        console.error(e);
+        alert("Erreur inattendue lors de la sauvegarde.");
+      }
+    }
+
+    function exportToCsv() {
+      const rows = cagesBody.querySelectorAll('tr');
+      const lines = [];
+      lines.push([
+        'Cage',
+        'Type',
+        'Male_Bague',
+        'Male_Annee',
+        'Femelle_Bague',
+        'Femelle_Annee',
+        'Mutation_Couleur',
+        'Remarques',
+        'Date_Ponte_Premier_Oeuf',
+        'Date_Eclosion_Prevue',
+        'Photo_URL'
+      ].join(';'));
+
+      rows.forEach(row => {
+        const cage = row.querySelector('.cage-num').value.trim();
+        const typeVal = row.querySelector('.type-select').value.trim();
+        const male = row.querySelector('.male-ring').value.trim();
+        const yearMale = row.querySelector('.year-male').value.trim();
+        const female = row.querySelector('.female-ring').value.trim();
+        const yearFemale = row.querySelector('.year-female').value.trim();
+        const mutation = row.querySelector('.mutation').value.trim();
+        const notes = row.querySelector('.notes').value.trim();
+        const egg = row.querySelector('.egg-date').value.trim();
+        const hatch = row.querySelector('.hatch-date').value.trim();
+        const photo = row.dataset.photo || '';
+
+        lines.push([
+          cage,
+          typeVal,
+          male,
+          yearMale,
+          female,
+          yearFemale,
+          mutation,
+          notes.replace(/\n/g, ' '),
+          egg,
+          hatch,
+          photo
+        ].map(value => value.replace(/;/g, ',')).join(';'));
+      });
+
+      const csvContent = '\uFEFF' + lines.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'elevage_parents_supabase.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // --- Events & init ---
+    addCageBtn.addEventListener('click', async () => {
+      createRow();
+      await refreshAllTypeSelects();
+    });
+    exportCsvBtn.addEventListener('click', exportToCsv);
+    saveBtn.addEventListener('click', saveParentsToSupabase);
+    loadBtn.addEventListener('click', loadParentsFromSupabase);
+
+    addTypeBtn.addEventListener('click', async () => {
+      const val = newTypeInput.value.trim();
+      if (!val) return;
+      await addTypeToSupabase(val);
+      newTypeInput.value = '';
+      await refreshTypesUI();
+      await refreshAllTypeSelects();
+    });
+
+    newTypeInput.addEventListener('keyup', async (e) => {
+      if (e.key === 'Enter') {
+        const val = newTypeInput.value.trim();
+        if (!val) return;
+        await addTypeToSupabase(val);
+        newTypeInput.value = '';
+        await refreshTypesUI();
+        await refreshAllTypeSelects();
+      }
+    });
+
+    (async function init() {
+      await refreshTypesUI();
+      await loadParentsFromSupabase();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Élevage Oiseaux – Gestion des Petits par Cage</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { font-family: Arial, sans-serif; background:#eef2f7; margin:0; padding:0; }
+.container { max-width: 1200px; margin:20px auto; background:white; padding:20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+h1,h2 { text-align:center; margin:5px 0;}
+.actions { text-align:center; margin:15px 0; display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
+button { padding:8px 14px; border:none; border-radius:6px; cursor:pointer; font-size:0.9rem; }
+.btn-primary{ background:#2563eb; color:white;} 
+.btn-danger{ background:#ef4444; color:white;} 
+.btn-green{ background:#15803d; color:white;} 
+.btn-back{ background:#6b7280; color:white; margin-bottom:10px;}
+.btn-date { background:#0ea5e9; color:white; font-size:0.75rem; padding:4px 6px; }
+.card { border:1px solid #d1d5db; padding:15px; border-radius:8px; margin-bottom:20px; background:#f9fafb;}
+.card.highlight { box-shadow:0 0 0 2px #2563eb; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th,td{ border:1px solid #d1d5db; padding:6px; font-size:0.85rem;}
+th{ background:#f3f4f6; font-weight:600;}
+input { width:100%; padding:4px; font-size:0.85rem; border:1px solid #d1d5db; border-radius:4px; }
+.info { font-size:0.8rem; color:#4b5563; text-align:center; margin-bottom:10px;}
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>Gestion des Petits – Par Cage</h1>
+
+<div class="actions">
+<button class="btn-back" onclick="window.location.href='index.html'">⬅ Retour parents</button>
+<button class="btn-primary" id="addCage">➕ Ajouter une cage</button>
+</div>
+
+<div id="cages"></div>
+
+</div>
+
+<script>
+const STORAGE = "elevage_petits_par_cage_v3";
+
+function loadData(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE)) || []; }
+  catch{ return []; }
+}
+
+function saveData(){
+  const cages = [];
+  document.querySelectorAll(".cage-block").forEach(block=>{
+    const cageNum = block.querySelector(".cage-num").value.trim();
+    const babies = [];
+    block.querySelectorAll(".baby-row").forEach(row=>{
+      babies.push({
+        ring: row.querySelector(".baby-ring").value.trim(),
+        birth: row.querySelector(".baby-birth").value.trim(),
+        color: row.querySelector(".baby-color").value.trim(),
+        notes: row.querySelector(".baby-notes").value.trim(),
+      });
+    });
+    cages.push({ cageNum, babies });
+  });
+  localStorage.setItem(STORAGE, JSON.stringify(cages));
+}
+
+function today() {
+  const d = new Date();
+  const m = (d.getMonth()+1).toString().padStart(2,'0');
+  const day = d.getDate().toString().padStart(2,'0');
+  return d.getFullYear()+"-"+m+"-"+day;
+}
+
+function addBabyRow(tbody, data={}){
+  const tr=document.createElement("tr");
+  tr.className="baby-row";
+  tr.innerHTML=`
+    <td><input class="baby-ring" placeholder="N° bague" value="${data.ring||""}"></td>
+    <td style="display:flex; gap:4px;">
+        <input type="date" class="baby-birth" value="${data.birth||""}">
+        <button class="btn-date btnToday" type="button">📅</button>
+    </td>
+    <td><input class="baby-color" placeholder="Mutation / couleur" value="${data.color||""}"></td>
+    <td><input class="baby-notes" placeholder="Remarques" value="${data.notes||""}"></td>
+    <td><button class="btn-danger delBaby" type="button">X</button></td>
+  `;
+  tr.querySelector(".btnToday").onclick=()=>{ tr.querySelector(".baby-birth").value = today(); saveData(); };
+
+  tr.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",saveData));
+  tr.querySelector(".delBaby").onclick=()=>{ tr.remove(); saveData(); };
+  tbody.appendChild(tr);
+}
+
+function createCage(data={}){
+  const div=document.createElement("div");
+  div.className="cage-block card";
+
+  div.innerHTML=`
+    <h2>Cage</h2>
+    <input class="cage-num" placeholder="Numéro de cage" value="${data.cageNum||""}">
+    <table>
+      <thead>
+        <tr>
+          <th>N° bague petit</th>
+          <th>Date naissance</th>
+          <th>Mutation / couleur</th>
+          <th>Remarques</th>
+          <th>❌</th>
+        </tr>
+      </thead>
+      <tbody class="baby-table"></tbody>
+    </table>
+    <div style="margin-top:8px;">
+      <button class="btn-green addBaby" type="button">➕ Ajouter un petit</button>
+      <button class="btn-danger delCage" type="button" style="float:right;">Supprimer la cage</button>
+    </div>
+  `;
+
+  const tbody = div.querySelector(".baby-table");
+
+  if(data.babies){
+    data.babies.forEach(b=>addBabyRow(tbody,b));
+  } else {
+    addBabyRow(tbody,{});
+  }
+
+  div.querySelector(".addBaby").onclick=()=>{ addBabyRow(tbody,{}); saveData(); };
+  div.querySelector(".delCage").onclick=()=>{ div.remove(); saveData(); };
+  div.querySelector(".cage-num").addEventListener("input",saveData);
+
+  document.getElementById("cages").appendChild(div);
+  return div;
+}
+
+function init(){
+  const data = loadData();
+  const params = new URLSearchParams(window.location.search);
+  const targetCage = (params.get("cage") || "").trim();
+
+  if(data.length===0){
+    if(targetCage){
+      createCage({cageNum: targetCage, babies: []});
+    } else {
+      createCage();
+    }
+  } else {
+    data.forEach(c=>createCage(c));
+
+    if(targetCage){
+      let existing = null;
+      document.querySelectorAll(".cage-block").forEach(block=>{
+        const val = (block.querySelector(".cage-num").value || "").trim();
+        if(val.toLowerCase() === targetCage.toLowerCase()){
+          existing = block;
+        }
+      });
+      if(!existing){
+        createCage({cageNum: targetCage, babies: []});
+      }
+    }
+  }
+
+  if(targetCage){
+    document.querySelectorAll(".cage-block").forEach(block=>{
+      const val = (block.querySelector(".cage-num").value || "").trim();
+      if(val.toLowerCase() === targetCage.toLowerCase()){
+        block.classList.add("highlight");
+        block.scrollIntoView({behavior:"smooth", block:"start"});
+      }
+    });
+  }
+}
+
+document.getElementById("addCage").onclick=()=>{ createCage(); saveData(); };
+
+init();
+</script>
+
+</body>
+</html>

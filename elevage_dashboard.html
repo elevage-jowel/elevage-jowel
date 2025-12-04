@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Élevage Oiseaux – Tableau de bord</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; background:#eef2f7; margin:0; padding:0; }
+    .container { max-width: 1200px; margin:20px auto; background:white; padding:20px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+    h1 { text-align:center; margin-top:0; margin-bottom:5px;}
+    .subtitle { text-align:center; color:#4b5563; margin-bottom:15px; font-size:0.9rem;}
+    .nav { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-bottom:15px;}
+    button { padding:8px 14px; border:none; border-radius:6px; cursor:pointer; font-size:0.9rem; }
+    .btn-primary { background:#2563eb; color:white;}
+    .btn-secondary { background:#6b7280; color:white;}
+    .btn-small { font-size:0.8rem; padding:5px 8px;}
+    table { width:100%; border-collapse:collapse; margin-top:10px;}
+    th,td { border:1px solid #d1d5db; padding:6px; font-size:0.85rem; text-align:left;}
+    th { background:#f3f4f6; font-weight:600;}
+    .badge { display:inline-block; padding:2px 6px; border-radius:999px; background:#e5e7eb; font-size:0.75rem;}
+    .badge-ok { background:#bbf7d0;}
+    .badge-warn { background:#fee2e2;}
+    .info { font-size:0.8rem; color:#4b5563; margin-top:10px; text-align:center;}
+    @media (max-width:900px){
+      th,td { font-size:0.75rem; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Tableau de bord – Élevage</h1>
+    <div class="subtitle">
+      Vue d'ensemble de toutes les cages : parents (Supabase) + nombre de petits (localStorage).
+    </div>
+
+    <div id="statsBar" style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:12px;
+      background:#f3f4f6;
+      border-radius:8px;
+      margin-bottom:15px;
+      gap:10px;
+      flex-wrap:wrap;
+    ">
+      <div style="font-size:1rem;">
+        🐣 Total jeunes : <b id="totalBabies">0</b>
+      </div>
+      <div style="font-size:1rem;">
+        🌡️ Température Braine-le-Comte : <b id="tempNow">-- °C</b>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn-secondary" onclick="location.href='index.html'">📋 Gestion des parents</button>
+      <button class="btn-secondary" onclick="location.href='elevage_petits_par_cage_v3.html'">🐣 Gestion des petits</button>
+      <button class="btn-primary" id="refreshBtn">🔄 Rafraîchir les données</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Cage</th>
+          <th>Type</th>
+          <th>Mâle</th>
+          <th>Femelle</th>
+          <th>Nb petits</th>
+          <th>Ponte</th>
+          <th>Éclosion</th>
+          <th>État</td>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="dashBody"></tbody>
+    </table>
+
+    <div class="info">
+      ℹ️ Le nombre de petits est calculé à partir des données locales de la page <b>Petits</b> sur cet appareil.
+    </div>
+  </div>
+
+  <script>
+    const { createClient } = supabase;
+    const SUPABASE_URL = "https://xaycnsxvpdmbseuteolp.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhheWNuc3h2cGRtYnNldXRlb2xwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3Njg3MTYsImV4cCI6MjA4MDM0NDcxNn0.j7tJmQkL7bWUSvqAfe8RqTy5Zx05uxdNBazv6Gou2M4";
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const dashBody = document.getElementById('dashBody');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    function loadBabiesLocal() {
+      try {
+        const raw = localStorage.getItem("elevage_petits_par_cage_v3");
+        if (!raw) return [];
+        return JSON.parse(raw) || [];
+      } catch(e) {
+        console.error("Erreur parsing petits:", e);
+        return [];
+      }
+    }
+
+    function countBabiesForCage(cageNum, babiesData) {
+      if (!cageNum) return 0;
+      const found = babiesData.find(c => (c.cageNum || "").toLowerCase() === cageNum.toLowerCase());
+      if (!found || !Array.isArray(found.babies)) return 0;
+      return found.babies.length;
+    }
+
+    function computeTotalBabies() {
+      const babiesData = loadBabiesLocal();
+      let total = 0;
+      babiesData.forEach(c => {
+        if (Array.isArray(c.babies)) total += c.babies.length;
+      });
+      document.getElementById("totalBabies").textContent = total;
+    }
+
+    async function loadTemperature() {
+      // Coordonnées de Braine-le-Comte
+      const lat = 50.6090;
+      const lon = 4.1439;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && data.current_weather) {
+          document.getElementById("tempNow").textContent = data.current_weather.temperature + "°C";
+        } else {
+          document.getElementById("tempNow").textContent = "N/A";
+        }
+      } catch (e) {
+        console.error("Erreur météo:", e);
+        document.getElementById("tempNow").textContent = "N/A";
+      }
+    }
+
+    function formatDate(d) {
+      if (!d) return "";
+      return d;
+    }
+
+    function computeState(egg, hatch, nbBabies) {
+      if (!egg && !hatch) return '<span class="badge">En attente</span>';
+      if (hatch && nbBabies > 0) return '<span class="badge badge-ok">Nés</span>';
+      if (hatch && nbBabies === 0) return '<span class="badge badge-warn">À vérifier</span>';
+      return '<span class="badge">En cours</span>';
+    }
+
+    async function refreshDashboard() {
+      dashBody.innerHTML = '<tr><td colspan="9">Chargement...</td></tr>';
+      const babiesData = loadBabiesLocal();
+
+      const { data, error } = await sb
+        .from('parents')
+        .select('*')
+        .order('cage', { ascending: true });
+
+      if (error) {
+        console.error(error);
+        dashBody.innerHTML = '<tr><td colspan="9">Erreur de chargement Supabase.</td></tr>';
+        computeTotalBabies();
+        loadTemperature();
+        return;
+      }
+
+      if (!data || !data.length) {
+        dashBody.innerHTML = '<tr><td colspan="9">Aucune cage encodée pour l\'instant.</td></tr>';
+        computeTotalBabies();
+        loadTemperature();
+        return;
+      }
+
+      dashBody.innerHTML = '';
+      data.forEach(row => {
+        const cage = row.cage || '';
+        const nb = countBabiesForCage(cage, babiesData);
+        const stateHtml = computeState(row.egg_date, row.hatch_date, nb);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${cage}</td>
+          <td>${row.type || ''}</td>
+          <td>${row.male_ring || ''}</td>
+          <td>${row.female_ring || ''}</td>
+          <td>${nb}</td>
+          <td>${formatDate(row.egg_date)}</td>
+          <td>${formatDate(row.hatch_date)}</td>
+          <td>${stateHtml}</td>
+          <td>
+            <button class="btn-small btn-secondary" onclick="openParents('${cage}')">Parents</button>
+            <button class="btn-small btn-primary" onclick="openBabies('${cage}')">Petits</button>
+          </td>
+        `;
+        dashBody.appendChild(tr);
+      });
+
+      computeTotalBabies();
+      loadTemperature();
+    }
+
+    function openParents(cage) {
+      window.open('index.html', '_blank');
+    }
+
+    function openBabies(cage) {
+      const url = 'elevage_petits_par_cage_v3.html?cage=' + encodeURIComponent(cage);
+      window.open(url, '_blank');
+    }
+
+    refreshBtn.addEventListener('click', refreshDashboard);
+
+    // Initial load
+    refreshDashboard();
+  </script>
+</body>
+</html>
