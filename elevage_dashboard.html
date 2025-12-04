@@ -25,13 +25,14 @@
       th,td { font-size:0.75rem; }
     }
   </style>
+  <!-- Supabase (facultatif pour le dashboard, tout casse pas si ça ne charge pas) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="container">
     <h1>Tableau de bord – Élevage</h1>
     <div class="subtitle">
-      Vue d'ensemble de toutes les cages : parents (Supabase) + nombre de petits (localStorage).
+      Vue d'ensemble de toutes les cages : parents (Supabase si dispo) + nombre de petits (localStorage de cet appareil).
     </div>
 
     <div id="statsBar" style="
@@ -69,7 +70,7 @@
           <th>Nb petits</th>
           <th>Ponte</th>
           <th>Éclosion</th>
-          <th>État</td>
+          <th>État</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -78,18 +79,31 @@
 
     <div class="info">
       ℹ️ Le nombre de petits est calculé à partir des données locales de la page <b>Petits</b> sur cet appareil.
+      <br>
+      ℹ️ Si Supabase ou internet ne sont pas disponibles, le tableau peut être vide mais le total jeunes et la météo essaieront quand même de s'afficher.
     </div>
   </div>
 
   <script>
-    const { createClient } = supabase;
+    // Client Supabase optionnel : on ne casse rien si la lib n'est pas chargée
+    let sb = null;
     const SUPABASE_URL = "https://xaycnsxvpdmbseuteolp.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhheWNuc3h2cGRtYnNldXRlb2xwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3Njg3MTYsImV4cCI6MjA4MDM0NDcxNn0.j7tJmQkL7bWUSvqAfe8RqTy5Zx05uxdNBazv6Gou2M4";
-    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    if (window.supabase) {
+      try {
+        const { createClient } = window.supabase;
+        sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      } catch (e) {
+        console.warn("Supabase non initialisé sur le dashboard :", e);
+        sb = null;
+      }
+    }
 
     const dashBody = document.getElementById('dashBody');
     const refreshBtn = document.getElementById('refreshBtn');
 
+    // ---- Données "petits" en local ----
     function loadBabiesLocal() {
       try {
         const raw = localStorage.getItem("elevage_petits_par_cage_v3");
@@ -117,15 +131,15 @@
       document.getElementById("totalBabies").textContent = total;
     }
 
+    // ---- Météo Braine-le-Comte ----
     async function loadTemperature() {
-      // Coordonnées de Braine-le-Comte
       const lat = 50.6090;
       const lon = 4.1439;
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
       try {
         const res = await fetch(url);
         const data = await res.json();
-        if (data && data.current_weather) {
+        if (data && data.current_weather && typeof data.current_weather.temperature !== "undefined") {
           document.getElementById("tempNow").textContent = data.current_weather.temperature + "°C";
         } else {
           document.getElementById("tempNow").textContent = "N/A";
@@ -149,55 +163,63 @@
     }
 
     async function refreshDashboard() {
+      // Mets à jour d'abord les stats globales (ça marche même sans Supabase)
+      computeTotalBabies();
+      loadTemperature();
+
       dashBody.innerHTML = '<tr><td colspan="9">Chargement...</td></tr>';
       const babiesData = loadBabiesLocal();
 
-      const { data, error } = await sb
-        .from('parents')
-        .select('*')
-        .order('cage', { ascending: true });
-
-      if (error) {
-        console.error(error);
-        dashBody.innerHTML = '<tr><td colspan="9">Erreur de chargement Supabase.</td></tr>';
-        computeTotalBabies();
-        loadTemperature();
+      // Si Supabase n'est pas dispo, on ne fait que les stats globales
+      if (!sb) {
+        dashBody.innerHTML = '<tr><td colspan="9">Supabase non disponible (hors-ligne ou script bloqué).<br>Les stats globales en haut restent fonctionnelles.</td></tr>';
         return;
       }
 
-      if (!data || !data.length) {
-        dashBody.innerHTML = '<tr><td colspan="9">Aucune cage encodée pour l\'instant.</td></tr>';
-        computeTotalBabies();
-        loadTemperature();
-        return;
+      try {
+        const { data, error } = await sb
+          .from('parents')
+          .select('*')
+          .order('cage', { ascending: true });
+
+        if (error) {
+          console.error(error);
+          dashBody.innerHTML = '<tr><td colspan="9">Erreur de chargement Supabase.</td></tr>';
+          return;
+        }
+
+        if (!data || !data.length) {
+          dashBody.innerHTML = '<tr><td colspan="9">Aucune cage encodée pour l\'instant.</td></tr>';
+          return;
+        }
+
+        dashBody.innerHTML = '';
+        data.forEach(row => {
+          const cage = row.cage || '';
+          const nb = countBabiesForCage(cage, babiesData);
+          const stateHtml = computeState(row.egg_date, row.hatch_date, nb);
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${cage}</td>
+            <td>${row.type || ''}</td>
+            <td>${row.male_ring || ''}</td>
+            <td>${row.female_ring || ''}</td>
+            <td>${nb}</td>
+            <td>${formatDate(row.egg_date)}</td>
+            <td>${formatDate(row.hatch_date)}</td>
+            <td>${stateHtml}</td>
+            <td>
+              <button class="btn-small btn-secondary" onclick="openParents('${cage}')">Parents</button>
+              <button class="btn-small btn-primary" onclick="openBabies('${cage}')">Petits</button>
+            </td>
+          `;
+          dashBody.appendChild(tr);
+        });
+      } catch (e) {
+        console.error("Erreur inattendue dashboard:", e);
+        dashBody.innerHTML = '<tr><td colspan="9">Erreur inattendue lors du chargement du tableau.</td></tr>';
       }
-
-      dashBody.innerHTML = '';
-      data.forEach(row => {
-        const cage = row.cage || '';
-        const nb = countBabiesForCage(cage, babiesData);
-        const stateHtml = computeState(row.egg_date, row.hatch_date, nb);
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${cage}</td>
-          <td>${row.type || ''}</td>
-          <td>${row.male_ring || ''}</td>
-          <td>${row.female_ring || ''}</td>
-          <td>${nb}</td>
-          <td>${formatDate(row.egg_date)}</td>
-          <td>${formatDate(row.hatch_date)}</td>
-          <td>${stateHtml}</td>
-          <td>
-            <button class="btn-small btn-secondary" onclick="openParents('${cage}')">Parents</button>
-            <button class="btn-small btn-primary" onclick="openBabies('${cage}')">Petits</button>
-          </td>
-        `;
-        dashBody.appendChild(tr);
-      });
-
-      computeTotalBabies();
-      loadTemperature();
     }
 
     function openParents(cage) {
@@ -211,7 +233,7 @@
 
     refreshBtn.addEventListener('click', refreshDashboard);
 
-    // Initial load
+    // Chargement initial
     refreshDashboard();
   </script>
 </body>
